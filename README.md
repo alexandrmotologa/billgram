@@ -4,6 +4,10 @@ BillGram is a client-side invoicing Telegram Mini App for freelancers, contracto
 
 All computations, QR code encoding, and PDF layout calculations run locally in the browser. Financial data never touches external servers or third-party tracking services.
 
+<p align="center">
+  <img src="docs/images/billgram_demo.gif" alt="BillGram Demo" width="400" />
+</p>
+
 ## Highlights
 
 - **30-second workflow**: Pre-fills your saved business profile and recent clients so you only enter line items.
