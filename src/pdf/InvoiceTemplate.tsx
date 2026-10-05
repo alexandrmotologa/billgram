@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import type { Invoice, InvoiceCalculations } from '../types/invoice';
 import { formatCurrency, calculateLineItemTotal } from '../lib/currency';
+import { getTranslations } from '../lib/translations';
 import { pdfStyles } from './styles';
 
 interface InvoiceTemplateProps {
@@ -17,36 +18,88 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
 }) => {
   const { sender, client, payment } = invoice;
   const accentColor = sender.accentColor || '#0f172a';
+  const t = getTranslations(invoice.language || 'en');
+  const layout = invoice.templateLayout || 'swiss';
+
+  const isExecutive = layout === 'executive';
+  const isCompact = layout === 'compact';
+
+  const pagePadding = isCompact ? 24 : 36;
 
   return (
     <Document title={`Invoice_${invoice.number}`} author={sender.name}>
-      <Page size="A4" style={pdfStyles.page}>
-        {/* Top Header */}
-        <View style={[pdfStyles.headerRow, { borderBottomColor: accentColor }]}>
-          <View style={pdfStyles.logoContainer}>
-            {sender.logoUrl ? (
-              <Image src={sender.logoUrl} style={pdfStyles.logo} />
-            ) : (
-              <Text style={[pdfStyles.partyName, { fontSize: 16, color: accentColor }]}>
-                {sender.name}
+      <Page size="A4" style={[pdfStyles.page, { padding: pagePadding }]}>
+        {/* Header Block */}
+        {isExecutive ? (
+          // Executive layout: solid top accent bar with white text
+          <View
+            style={{
+              backgroundColor: accentColor,
+              padding: 16,
+              borderRadius: 4,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20,
+            }}
+          >
+            <View>
+              {sender.logoUrl ? (
+                <Image src={sender.logoUrl} style={{ width: 100, height: 36, objectFit: 'contain' }} />
+              ) : (
+                <Text style={{ fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>
+                  {sender.name}
+                </Text>
+              )}
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>
+                {t.invoiceTitle}
               </Text>
-            )}
+              <Text style={{ fontSize: 11, color: '#e2e8f0', marginTop: 2 }}>
+                #{invoice.number}
+              </Text>
+            </View>
           </View>
+        ) : (
+          // Swiss and Compact layout
+          <View
+            style={[
+              pdfStyles.headerRow,
+              {
+                borderBottomColor: accentColor,
+                marginBottom: isCompact ? 16 : 28,
+                paddingBottom: isCompact ? 10 : 16,
+              },
+            ]}
+          >
+            <View style={pdfStyles.logoContainer}>
+              {sender.logoUrl ? (
+                <Image src={sender.logoUrl} style={pdfStyles.logo} />
+              ) : (
+                <Text style={[pdfStyles.partyName, { fontSize: isCompact ? 14 : 16, color: accentColor }]}>
+                  {sender.name}
+                </Text>
+              )}
+            </View>
 
-          <View style={pdfStyles.invoiceTitleBlock}>
-            <Text style={[pdfStyles.invoiceTitle, { color: accentColor }]}>INVOICE</Text>
-            <Text style={pdfStyles.invoiceNumber}>#{invoice.number}</Text>
+            <View style={pdfStyles.invoiceTitleBlock}>
+              <Text style={[pdfStyles.invoiceTitle, { color: accentColor, fontSize: isCompact ? 18 : 22 }]}>
+                {t.invoiceTitle}
+              </Text>
+              <Text style={pdfStyles.invoiceNumber}>#{invoice.number}</Text>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Parties (Sender / Recipient) */}
-        <View style={pdfStyles.partiesContainer}>
+        <View style={[pdfStyles.partiesContainer, { marginBottom: isCompact ? 14 : 24 }]}>
           {/* Billed By */}
           <View style={pdfStyles.partyColumn}>
-            <Text style={pdfStyles.partyLabel}>BILLED BY</Text>
+            <Text style={pdfStyles.partyLabel}>{t.billedBy}</Text>
             <Text style={pdfStyles.partyName}>{sender.name}</Text>
             {sender.taxId ? (
-              <Text style={pdfStyles.partyText}>Tax / VAT ID: {sender.taxId}</Text>
+              <Text style={pdfStyles.partyText}>Tax / VAT: {sender.taxId}</Text>
             ) : null}
             {sender.address ? (
               <Text style={pdfStyles.partyText}>{sender.address}</Text>
@@ -61,12 +114,12 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
 
           {/* Billed To */}
           <View style={pdfStyles.partyColumn}>
-            <Text style={pdfStyles.partyLabel}>BILLED TO</Text>
+            <Text style={pdfStyles.partyLabel}>{t.billedTo}</Text>
             <Text style={pdfStyles.partyName}>
               {client.name || 'Client Name / Company'}
             </Text>
             {client.taxId ? (
-              <Text style={pdfStyles.partyText}>Tax / VAT ID: {client.taxId}</Text>
+              <Text style={pdfStyles.partyText}>Tax / VAT: {client.taxId}</Text>
             ) : null}
             {client.address ? (
               <Text style={pdfStyles.partyText}>{client.address}</Text>
@@ -81,21 +134,21 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
         </View>
 
         {/* Metadata Grid (Dates & Status) */}
-        <View style={pdfStyles.metaGrid}>
+        <View style={[pdfStyles.metaGrid, { marginBottom: isCompact ? 12 : 20, padding: isCompact ? 6 : 8 }]}>
           <View style={pdfStyles.metaItem}>
-            <Text style={pdfStyles.metaLabel}>ISSUE DATE</Text>
+            <Text style={pdfStyles.metaLabel}>{t.issueDate}</Text>
             <Text style={pdfStyles.metaValue}>{invoice.issueDate}</Text>
           </View>
           <View style={pdfStyles.metaItem}>
-            <Text style={pdfStyles.metaLabel}>DUE DATE</Text>
+            <Text style={pdfStyles.metaLabel}>{t.dueDate}</Text>
             <Text style={pdfStyles.metaValue}>{invoice.dueDate}</Text>
           </View>
           <View style={pdfStyles.metaItem}>
-            <Text style={pdfStyles.metaLabel}>CURRENCY</Text>
+            <Text style={pdfStyles.metaLabel}>{t.currency}</Text>
             <Text style={pdfStyles.metaValue}>{invoice.currency}</Text>
           </View>
           <View style={pdfStyles.metaItem}>
-            <Text style={pdfStyles.metaLabel}>STATUS</Text>
+            <Text style={pdfStyles.metaLabel}>{t.status}</Text>
             <Text
               style={[
                 pdfStyles.metaValue,
@@ -116,18 +169,37 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
         </View>
 
         {/* Line Items Table */}
-        <View style={pdfStyles.table}>
-          <View style={[pdfStyles.tableHeader, { borderBottomColor: accentColor }]}>
-            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colDesc]}>DESCRIPTION</Text>
-            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colQty]}>QTY</Text>
-            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colPrice]}>UNIT PRICE</Text>
-            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colTotal]}>AMOUNT</Text>
+        <View style={[pdfStyles.table, { marginBottom: isCompact ? 14 : 20 }]}>
+          <View
+            style={[
+              pdfStyles.tableHeader,
+              {
+                borderBottomColor: accentColor,
+                backgroundColor: isExecutive ? '#f8fafc' : 'transparent',
+                paddingVertical: isCompact ? 3 : 5,
+              },
+            ]}
+          >
+            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colDesc]}>{t.description}</Text>
+            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colQty]}>{t.qty}</Text>
+            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colPrice]}>{t.unitPrice}</Text>
+            <Text style={[pdfStyles.tableHeaderCell, pdfStyles.colTotal]}>{t.amount}</Text>
           </View>
 
           {invoice.items.map((item, index) => {
             const itemTotal = calculateLineItemTotal(item);
+            const isEven = index % 2 === 0;
             return (
-              <View key={item.id || index} style={pdfStyles.tableRow}>
+              <View
+                key={item.id || index}
+                style={[
+                  pdfStyles.tableRow,
+                  {
+                    backgroundColor: isExecutive && isEven ? '#fdfdfe' : 'transparent',
+                    paddingVertical: isCompact ? 4 : 7,
+                  },
+                ]}
+              >
                 <View style={pdfStyles.colDesc}>
                   <Text style={pdfStyles.itemDescText}>
                     {item.description || 'Service / Product item'}
@@ -159,10 +231,10 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
         </View>
 
         {/* Financial Summary */}
-        <View style={pdfStyles.summaryRow}>
+        <View style={[pdfStyles.summaryRow, { marginBottom: isCompact ? 12 : 20 }]}>
           <View style={pdfStyles.totalsBox}>
             <View style={pdfStyles.totalLine}>
-              <Text style={pdfStyles.totalLabel}>Subtotal</Text>
+              <Text style={pdfStyles.totalLabel}>{t.subtotal}</Text>
               <Text style={pdfStyles.totalValue}>
                 {formatCurrency(totals.subtotal, invoice.currency)}
               </Text>
@@ -170,7 +242,7 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
 
             {totals.discountTotal > 0 && (
               <View style={pdfStyles.totalLine}>
-                <Text style={pdfStyles.totalLabel}>Total Discount</Text>
+                <Text style={pdfStyles.totalLabel}>{t.discount}</Text>
                 <Text style={[pdfStyles.totalValue, { color: '#dc2626' }]}>
                   -{formatCurrency(totals.discountTotal, invoice.currency)}
                 </Text>
@@ -179,7 +251,7 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
 
             <View style={pdfStyles.totalLine}>
               <Text style={pdfStyles.totalLabel}>
-                {invoice.isTaxExempt ? 'VAT / Tax (Exempt)' : `VAT / Tax (${invoice.taxRate}%)`}
+                {invoice.isTaxExempt ? t.taxExempt : `${t.tax} (${invoice.taxRate}%)`}
               </Text>
               <Text style={pdfStyles.totalValue}>
                 {formatCurrency(totals.taxAmount, invoice.currency)}
@@ -188,7 +260,7 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
 
             <View style={[pdfStyles.grandTotalLine, { borderTopColor: accentColor }]}>
               <Text style={[pdfStyles.grandTotalLabel, { color: accentColor }]}>
-                TOTAL DUE
+                {t.totalDue}
               </Text>
               <Text style={[pdfStyles.grandTotalValue, { color: accentColor }]}>
                 {formatCurrency(totals.total, invoice.currency)}
@@ -198,29 +270,37 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
         </View>
 
         {/* Payment & QR Section */}
-        <View style={pdfStyles.paymentBox}>
+        <View
+          style={[
+            pdfStyles.paymentBox,
+            {
+              padding: isCompact ? 8 : 12,
+              marginBottom: isCompact ? 10 : 16,
+            },
+          ]}
+        >
           {qrDataUrl ? (
-            <View style={pdfStyles.qrContainer}>
-              <Image src={qrDataUrl} style={pdfStyles.qrImage} />
+            <View style={[pdfStyles.qrContainer, { width: isCompact ? 72 : 86, height: isCompact ? 72 : 86 }]}>
+              <Image src={qrDataUrl} style={{ width: isCompact ? 66 : 80, height: isCompact ? 66 : 80 }} />
             </View>
           ) : null}
 
           <View style={pdfStyles.paymentDetailsCol}>
             <Text style={[pdfStyles.paymentMethodTitle, { color: accentColor }]}>
-              PAYMENT DETAILS & BANK TRANSFER
+              {t.paymentDetails}
             </Text>
 
             {payment.method === 'sepa' && (
               <>
                 <View style={pdfStyles.paymentItemRow}>
-                  <Text style={pdfStyles.paymentItemLabel}>Beneficiary:</Text>
+                  <Text style={pdfStyles.paymentItemLabel}>{t.beneficiary}:</Text>
                   <Text style={pdfStyles.paymentItemValue}>
                     {payment.beneficiaryName || sender.name}
                   </Text>
                 </View>
                 {payment.iban && (
                   <View style={pdfStyles.paymentItemRow}>
-                    <Text style={pdfStyles.paymentItemLabel}>IBAN:</Text>
+                    <Text style={pdfStyles.paymentItemLabel}>{t.iban}:</Text>
                     <Text style={[pdfStyles.paymentItemValue, { fontFamily: 'Helvetica-Bold' }]}>
                       {payment.iban}
                     </Text>
@@ -228,26 +308,24 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
                 )}
                 {payment.bic && (
                   <View style={pdfStyles.paymentItemRow}>
-                    <Text style={pdfStyles.paymentItemLabel}>BIC / SWIFT:</Text>
+                    <Text style={pdfStyles.paymentItemLabel}>{t.bic}:</Text>
                     <Text style={pdfStyles.paymentItemValue}>{payment.bic}</Text>
                   </View>
                 )}
                 {payment.bankName && (
                   <View style={pdfStyles.paymentItemRow}>
-                    <Text style={pdfStyles.paymentItemLabel}>Bank:</Text>
+                    <Text style={pdfStyles.paymentItemLabel}>{t.bank}:</Text>
                     <Text style={pdfStyles.paymentItemValue}>{payment.bankName}</Text>
                   </View>
                 )}
                 <View style={pdfStyles.paymentItemRow}>
-                  <Text style={pdfStyles.paymentItemLabel}>Reference:</Text>
+                  <Text style={pdfStyles.paymentItemLabel}>{t.reference}:</Text>
                   <Text style={pdfStyles.paymentItemValue}>
                     {payment.referenceText || `Invoice ${invoice.number}`}
                   </Text>
                 </View>
                 {qrDataUrl && (
-                  <Text style={pdfStyles.qrScanHint}>
-                    Scan the EPC QR code with your mobile banking app to autofill payment.
-                  </Text>
+                  <Text style={pdfStyles.qrScanHint}>{t.scanEpcHint}</Text>
                 )}
               </>
             )}
@@ -267,9 +345,7 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
                   </Text>
                 </View>
                 {qrDataUrl && (
-                  <Text style={pdfStyles.qrScanHint}>
-                    Scan the QR code to open Revolut instant transfer.
-                  </Text>
+                  <Text style={pdfStyles.qrScanHint}>{t.scanRevolutHint}</Text>
                 )}
               </>
             )}
@@ -283,9 +359,7 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
                   </Text>
                 </View>
                 {qrDataUrl && (
-                  <Text style={pdfStyles.qrScanHint}>
-                    Scan QR code with mobile camera to pay via credit card or Apple/Google Pay.
-                  </Text>
+                  <Text style={pdfStyles.qrScanHint}>{t.scanStripeHint}</Text>
                 )}
               </>
             )}
@@ -299,9 +373,7 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
                   </Text>
                 </View>
                 {qrDataUrl && (
-                  <Text style={pdfStyles.qrScanHint}>
-                    Scan QR code via Telegram Wallet or Tonkeeper to transfer funds.
-                  </Text>
+                  <Text style={pdfStyles.qrScanHint}>{t.scanTonHint}</Text>
                 )}
               </>
             )}
@@ -313,6 +385,24 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
             )}
           </View>
         </View>
+
+        {/* Exchange Rate Reference Note */}
+        {invoice.exchangeRateNote ? (
+          <View
+            style={{
+              padding: 5,
+              backgroundColor: '#f8fafc',
+              borderWidth: 0.5,
+              borderColor: '#cbd5e1',
+              borderRadius: 4,
+              marginBottom: 8,
+            }}
+          >
+            <Text style={{ fontSize: 7.5, color: '#334155', fontFamily: 'Helvetica-Bold' }}>
+              {t.exchangeRate}: {invoice.exchangeRateNote}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Legal & Reverse Charge Notice */}
         {invoice.isTaxExempt && (
@@ -333,25 +423,40 @@ export const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({
           </View>
         )}
 
-        {/* Notes & Terms Footer */}
+        {/* Signature & Bottom Notes Footer */}
         <View style={pdfStyles.notesSection}>
-          {invoice.notes ? (
-            <View style={{ marginBottom: 4 }}>
-              <Text style={pdfStyles.notesTitle}>NOTES</Text>
-              <Text style={pdfStyles.notesContent}>{invoice.notes}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ width: invoice.includeSignature && sender.signatureUrl ? '65%' : '100%' }}>
+              {invoice.notes ? (
+                <View style={{ marginBottom: 4 }}>
+                  <Text style={pdfStyles.notesTitle}>{t.notes}</Text>
+                  <Text style={pdfStyles.notesContent}>{invoice.notes}</Text>
+                </View>
+              ) : null}
+              {invoice.terms ? (
+                <View>
+                  <Text style={pdfStyles.notesTitle}>{t.terms}</Text>
+                  <Text style={pdfStyles.notesContent}>{invoice.terms}</Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-          {invoice.terms ? (
-            <View>
-              <Text style={pdfStyles.notesTitle}>TERMS & CONDITIONS</Text>
-              <Text style={pdfStyles.notesContent}>{invoice.terms}</Text>
-            </View>
-          ) : null}
+
+            {/* Authorized Signature Block */}
+            {invoice.includeSignature && sender.signatureUrl && (
+              <View style={{ width: '30%', alignItems: 'center', paddingTop: 2 }}>
+                <Image
+                  src={sender.signatureUrl}
+                  style={{ width: 85, height: 35, objectFit: 'contain', marginBottom: 2 }}
+                />
+                <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#64748b', textTransform: 'uppercase' }}>
+                  {t.signature}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        <Text style={pdfStyles.footerDisclaimer}>
-          Generated with BillGram Client-Side Invoicing • billgram.app
-        </Text>
+        <Text style={pdfStyles.footerDisclaimer}>{t.footerWatermark}</Text>
       </Page>
     </Document>
   );

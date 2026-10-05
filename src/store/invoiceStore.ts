@@ -6,8 +6,10 @@ import type {
   InvoiceStatus,
   LineItem,
   PaymentDetails,
+  ServicePreset,
 } from '../types/invoice';
 import { storageAdapter } from './storageAdapter';
+import type { BackupPayload } from '../lib/export';
 
 const DEFAULT_PROFILE: BusinessProfile = {
   name: 'Alexandr Motologa',
@@ -22,11 +24,49 @@ const DEFAULT_PROFILE: BusinessProfile = {
   stripePaymentLink: 'https://buy.stripe.com/test_12345',
   tonAddress: 'EQD...TonAddressHere',
   logoUrl: '',
+  signatureUrl: '',
   defaultCurrency: 'EUR',
   defaultTaxRate: 19,
   defaultPaymentTermsDays: 14,
+  defaultLanguage: 'en',
+  defaultTemplateLayout: 'swiss',
   accentColor: '#0f172a', // Obsidian Swiss black
 };
+
+const DEFAULT_SERVICE_PRESETS: ServicePreset[] = [
+  {
+    id: 'preset_1',
+    title: 'Software Development',
+    description: 'Fullstack Software Engineering & Architecture',
+    unit: 'hours',
+    unitPrice: 75,
+    discountPercent: 0,
+  },
+  {
+    id: 'preset_2',
+    title: 'UI/UX Design',
+    description: 'Interface Design & Interactive Prototype',
+    unit: 'hours',
+    unitPrice: 65,
+    discountPercent: 0,
+  },
+  {
+    id: 'preset_3',
+    title: 'Technical Consulting',
+    description: 'Architecture Advisory & Code Audit',
+    unit: 'days',
+    unitPrice: 600,
+    discountPercent: 0,
+  },
+  {
+    id: 'preset_4',
+    title: 'Monthly Maintenance',
+    description: 'Infrastructure Monitoring & SLA Retainer',
+    unit: 'service',
+    unitPrice: 450,
+    discountPercent: 0,
+  },
+];
 
 function getTodayString(): string {
   const now = new Date();
@@ -36,6 +76,13 @@ function getTodayString(): string {
 function getDueDateString(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function advanceDateByMonths(dateStr: string, monthsToAdd: number): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return getTodayString();
+  d.setMonth(d.getMonth() + monthsToAdd);
   return d.toISOString().split('T')[0];
 }
 
@@ -57,12 +104,15 @@ function generateNextInvoiceNumber(existingInvoices: Invoice[]): string {
 
 function createEmptyInvoice(profile: BusinessProfile, existingInvoices: Invoice[]): Invoice {
   const id = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const nextNum = generateNextInvoiceNumber(existingInvoices);
   return {
     id,
-    number: generateNextInvoiceNumber(existingInvoices),
+    number: nextNum,
     issueDate: getTodayString(),
     dueDate: getDueDateString(profile.defaultPaymentTermsDays || 14),
     status: 'draft',
+    language: profile.defaultLanguage || 'en',
+    templateLayout: profile.defaultTemplateLayout || 'swiss',
     sender: { ...profile },
     client: {
       id: `cli_${Date.now()}`,
@@ -94,8 +144,10 @@ function createEmptyInvoice(profile: BusinessProfile, existingInvoices: Invoice[
       revolutTag: profile.revolutTag,
       stripePaymentLink: profile.stripePaymentLink,
       tonAddress: profile.tonAddress,
-      referenceText: `Invoice ${generateNextInvoiceNumber(existingInvoices)}`,
+      referenceText: `Invoice ${nextNum}`,
     },
+    includeSignature: Boolean(profile.signatureUrl),
+    exchangeRateNote: '',
     notes: 'Payment is due within the agreed payment terms. Thank you for your business.',
     terms: 'Late payments may be subject to statutory interest.',
     createdAt: Date.now(),
@@ -108,6 +160,7 @@ interface InvoiceStoreState {
   profile: BusinessProfile;
   clients: Client[];
   savedInvoices: Invoice[];
+  servicePresets: ServicePreset[];
   currentInvoice: Invoice;
 
   // Actions
@@ -124,11 +177,16 @@ interface InvoiceStoreState {
   createNewInvoice: () => void;
   loadInvoice: (id: string) => void;
   duplicateInvoice: (id: string) => void;
+  billNextMonth: (id: string) => void;
   deleteInvoice: (id: string) => Promise<void>;
   updateInvoiceStatus: (id: string, status: InvoiceStatus) => Promise<void>;
   
   saveClient: (client: Client) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
+  
+  addServicePreset: (preset: Omit<ServicePreset, 'id'>) => Promise<void>;
+  deleteServicePreset: (id: string) => Promise<void>;
+  restoreFullBackup: (backup: BackupPayload) => Promise<void>;
 }
 
 export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
@@ -136,14 +194,16 @@ export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
   profile: DEFAULT_PROFILE,
   clients: [],
   savedInvoices: [],
+  servicePresets: DEFAULT_SERVICE_PRESETS,
   currentInvoice: createEmptyInvoice(DEFAULT_PROFILE, []),
 
   initStore: async () => {
     try {
-      const [profileData, clientsData, invoicesData] = await Promise.all([
+      const [profileData, clientsData, invoicesData, presetsData] = await Promise.all([
         storageAdapter.getItem('billgram_profile'),
         storageAdapter.getItem('billgram_clients'),
         storageAdapter.getItem('billgram_invoices'),
+        storageAdapter.getItem('billgram_presets'),
       ]);
 
       const profile: BusinessProfile = profileData
@@ -152,12 +212,16 @@ export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
 
       const clients: Client[] = clientsData ? JSON.parse(clientsData) : [];
       const savedInvoices: Invoice[] = invoicesData ? JSON.parse(invoicesData) : [];
+      const servicePresets: ServicePreset[] = presetsData
+        ? JSON.parse(presetsData)
+        : DEFAULT_SERVICE_PRESETS;
 
       set({
         isInitialized: true,
         profile,
         clients,
         savedInvoices,
+        servicePresets,
         currentInvoice: createEmptyInvoice(profile, savedInvoices),
       });
     } catch (err) {
@@ -233,7 +297,7 @@ export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
 
   removeLineItem: (id) => {
     const current = get().currentInvoice;
-    if (current.items.length <= 1) return; // Keep at least one item
+    if (current.items.length <= 1) return;
     const items = current.items.filter((item) => item.id !== id);
     set({
       currentInvoice: {
@@ -265,7 +329,6 @@ export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
       updatedAt: Date.now(),
     };
 
-    // If client has a name, automatically save to client directory
     if (finalInvoice.client.name.trim()) {
       await saveClient(finalInvoice.client);
     }
@@ -316,6 +379,56 @@ export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
     };
 
     set({ currentInvoice: duplicated });
+  },
+
+  billNextMonth: (id) => {
+    const { savedInvoices } = get();
+    const target = savedInvoices.find((inv) => inv.id === id);
+    if (!target) return;
+
+    const newNumber = generateNextInvoiceNumber(savedInvoices);
+    const newIssueDate = advanceDateByMonths(target.issueDate, 1);
+    const newDueDate = advanceDateByMonths(target.dueDate, 1);
+
+    // Auto-update month names in line item descriptions if present
+    const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthNamesRo = ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'];
+
+    const targetMonthIdx = new Date(target.issueDate).getMonth();
+    const nextMonthIdx = (targetMonthIdx + 1) % 12;
+
+    const updatedItems = target.items.map((item) => {
+      let desc = item.description;
+      if (monthNamesEn[targetMonthIdx] && desc.includes(monthNamesEn[targetMonthIdx])) {
+        desc = desc.replace(monthNamesEn[targetMonthIdx], monthNamesEn[nextMonthIdx]);
+      }
+      if (monthNamesRo[targetMonthIdx] && desc.includes(monthNamesRo[targetMonthIdx])) {
+        desc = desc.replace(monthNamesRo[targetMonthIdx], monthNamesRo[nextMonthIdx]);
+      }
+      return {
+        ...item,
+        id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        description: desc,
+      };
+    });
+
+    const recurringInvoice: Invoice = {
+      ...target,
+      id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      number: newNumber,
+      issueDate: newIssueDate,
+      dueDate: newDueDate,
+      status: 'draft',
+      items: updatedItems,
+      payment: {
+        ...target.payment,
+        referenceText: `Invoice ${newNumber}`,
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    set({ currentInvoice: recurringInvoice });
   },
 
   deleteInvoice: async (id) => {
@@ -371,5 +484,40 @@ export const useInvoiceStore = create<InvoiceStoreState>((set, get) => ({
     const updated = clients.filter((c) => c.id !== id);
     set({ clients: updated });
     await storageAdapter.setItem('billgram_clients', JSON.stringify(updated));
+  },
+
+  addServicePreset: async (preset) => {
+    const { servicePresets } = get();
+    const newPreset: ServicePreset = {
+      ...preset,
+      id: `preset_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    };
+    const updated = [...servicePresets, newPreset];
+    set({ servicePresets: updated });
+    await storageAdapter.setItem('billgram_presets', JSON.stringify(updated));
+  },
+
+  deleteServicePreset: async (id) => {
+    const { servicePresets } = get();
+    const updated = servicePresets.filter((p) => p.id !== id);
+    set({ servicePresets: updated });
+    await storageAdapter.setItem('billgram_presets', JSON.stringify(updated));
+  },
+
+  restoreFullBackup: async (backup) => {
+    set({
+      profile: backup.profile,
+      clients: backup.clients,
+      savedInvoices: backup.savedInvoices,
+      servicePresets: backup.servicePresets,
+      currentInvoice: backup.savedInvoices[0] || createEmptyInvoice(backup.profile, []),
+    });
+
+    await Promise.all([
+      storageAdapter.setItem('billgram_profile', JSON.stringify(backup.profile)),
+      storageAdapter.setItem('billgram_clients', JSON.stringify(backup.clients)),
+      storageAdapter.setItem('billgram_invoices', JSON.stringify(backup.savedInvoices)),
+      storageAdapter.setItem('billgram_presets', JSON.stringify(backup.servicePresets)),
+    ]);
   },
 }));

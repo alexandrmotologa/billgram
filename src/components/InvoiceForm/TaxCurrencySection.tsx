@@ -1,12 +1,12 @@
 import React from 'react';
-import { DollarSign, Percent, ShieldCheck } from 'lucide-react';
+import { DollarSign, Percent, ShieldCheck, PenTool, ArrowRightLeft } from 'lucide-react';
 import { useInvoiceStore } from '../../store/invoiceStore';
 import { CURRENCY_CONFIG } from '../../lib/currency';
 import { triggerHaptic } from '../../lib/telegram';
 import type { CurrencyCode } from '../../types/invoice';
 
 export const TaxCurrencySection: React.FC = () => {
-  const { currentInvoice, updateCurrentInvoice } = useInvoiceStore();
+  const { currentInvoice, updateCurrentInvoice, profile } = useInvoiceStore();
 
   const currencies: CurrencyCode[] = ['EUR', 'USD', 'GBP', 'RON', 'MDL', 'CHF'];
   const taxPresets = [0, 5, 9, 19, 20, 21];
@@ -145,6 +145,45 @@ export const TaxCurrencySection: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Exchange Rate Note */}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+            <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400" /> Reference exchange rate (optional)
+          </label>
+          <input
+            type="text"
+            value={currentInvoice.exchangeRateNote || ''}
+            onChange={(e) => updateCurrentInvoice({ exchangeRateNote: e.target.value })}
+            placeholder="e.g. Curs de schimb BNR: 1 EUR = 4.9765 RON"
+            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400 text-slate-800 font-mono text-xs"
+          />
+        </div>
+
+        {/* Include Authorized Signature Toggle */}
+        {profile.signatureUrl && (
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div className="flex items-center gap-2">
+                <PenTool className="w-4 h-4 text-indigo-600" />
+                <div>
+                  <span className="text-xs font-semibold text-slate-800 block">
+                    Include authorized signature on invoice
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    Renders your signature in the PDF authorization box
+                  </span>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={currentInvoice.includeSignature}
+                onChange={(e) => updateCurrentInvoice({ includeSignature: e.target.checked })}
+                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+              />
+            </label>
+          </div>
+        )}
 
         {/* Notes & Terms */}
         <div className="space-y-2">

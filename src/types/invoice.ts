@@ -6,10 +6,23 @@ export type PaymentMethodType = 'sepa' | 'revolut' | 'stripe' | 'ton' | 'custom'
 
 export type ItemUnit = 'hours' | 'days' | 'units' | 'service' | 'fixed';
 
+export type InvoiceLanguage = 'en' | 'ro' | 'de' | 'fr';
+
+export type TemplateLayout = 'swiss' | 'executive' | 'compact';
+
 export interface LineItem {
   id: string;
   description: string;
   quantity: number;
+  unit: ItemUnit;
+  unitPrice: number;
+  discountPercent?: number;
+}
+
+export interface ServicePreset {
+  id: string;
+  title: string;
+  description: string;
   unit: ItemUnit;
   unitPrice: number;
   discountPercent?: number;
@@ -37,9 +50,12 @@ export interface BusinessProfile {
   stripePaymentLink?: string;
   tonAddress?: string;
   logoUrl?: string; // Base64 data URL
+  signatureUrl?: string; // Base64 data URL
   defaultCurrency: CurrencyCode;
   defaultTaxRate: number;
   defaultPaymentTermsDays: number;
+  defaultLanguage?: InvoiceLanguage;
+  defaultTemplateLayout?: TemplateLayout;
   accentColor: string;
 }
 
@@ -63,6 +79,9 @@ export interface Invoice {
   dueDate: string;   // YYYY-MM-DD
   status: InvoiceStatus;
   
+  language: InvoiceLanguage;
+  templateLayout: TemplateLayout;
+  
   sender: BusinessProfile;
   client: Client;
   
@@ -73,6 +92,9 @@ export interface Invoice {
   taxExemptReason?: string;
   
   payment: PaymentDetails;
+  
+  includeSignature: boolean;
+  exchangeRateNote?: string;
   
   notes?: string;
   terms?: string;

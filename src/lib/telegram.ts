@@ -109,13 +109,14 @@ export function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' | '
 }
 
 /**
- * Generates a polite, professional payment reminder message formatted for Telegram chat
+ * Generates a polite, professional payment reminder message formatted for Telegram chat in chosen language
  */
 export function generatePaymentReminderMessage(invoice: Invoice): string {
   const { total } = calculateInvoiceTotals(invoice);
   const formattedTotal = formatCurrency(total, invoice.currency);
   const clientName = invoice.client.name.trim() || 'there';
   const senderName = invoice.sender.name.trim() || 'Freelancer';
+  const lang = invoice.language || 'en';
 
   let paymentText = '';
   if (invoice.payment.method === 'sepa' && invoice.payment.iban) {
@@ -128,6 +129,37 @@ export function generatePaymentReminderMessage(invoice: Invoice): string {
     paymentText = `\nTON Wallet: ${invoice.payment.tonAddress}`;
   }
 
+  if (lang === 'ro') {
+    return (
+      `Salut ${clientName},\n\n` +
+      `Îți trimit un memento amical privind factura #${invoice.number} în valoare de ${formattedTotal}, emisă pe ${invoice.issueDate} (Scadență: ${invoice.dueDate}).\n` +
+      `${paymentText ? `${paymentText}\n\n` : '\n'}` +
+      `Spune-mi dacă dorești ajustări sau o nouă copie PDF a facturii.\n\n` +
+      `Mulțumesc,\n${senderName}`
+    );
+  }
+
+  if (lang === 'de') {
+    return (
+      `Guten Tag ${clientName},\n\n` +
+      `hier ist eine freundliche Zahlungserinnerung zur Rechnung #${invoice.number} über ${formattedTotal}, ausgestellt am ${invoice.issueDate} (Fällig am: ${invoice.dueDate}).\n` +
+      `${paymentText ? `${paymentText}\n\n` : '\n'}` +
+      `Geben Sie mir gerne Bescheid, falls Sie Fragen oder eine neue PDF-Kopie benötigen.\n\n` +
+      `Mit freundlichen Grüßen,\n${senderName}`
+    );
+  }
+
+  if (lang === 'fr') {
+    return (
+      `Bonjour ${clientName},\n\n` +
+      `Voici un rappel amical concernant la facture #${invoice.number} d'un montant de ${formattedTotal}, émise le ${invoice.issueDate} (Échéance: ${invoice.dueDate}).\n` +
+      `${paymentText ? `${paymentText}\n\n` : '\n'}` +
+      `N'hésitez pas à me contacter pour toute question ou un nouvel exemplaire PDF.\n\n` +
+      `Cordialement,\n${senderName}`
+    );
+  }
+
+  // Default English
   return (
     `Hi ${clientName},\n\n` +
     `Here is a friendly reminder regarding invoice #${invoice.number} for ${formattedTotal}, issued on ${invoice.issueDate} (Due: ${invoice.dueDate}).\n` +

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Calendar, FileText, Clock } from 'lucide-react';
+import { Calendar, FileText, Clock, Languages, LayoutTemplate } from 'lucide-react';
 import { useInvoiceStore } from '../../store/invoiceStore';
 import { triggerHaptic } from '../../lib/telegram';
-import type { InvoiceStatus } from '../../types/invoice';
+import type { InvoiceLanguage, InvoiceStatus, TemplateLayout } from '../../types/invoice';
 
 export const InvoiceMetaSection: React.FC = () => {
   const { currentInvoice, updateCurrentInvoice } = useInvoiceStore();
@@ -19,6 +19,19 @@ export const InvoiceMetaSection: React.FC = () => {
     { value: 'sent', label: 'Sent' },
     { value: 'paid', label: 'Paid' },
     { value: 'overdue', label: 'Overdue' },
+  ];
+
+  const languageOptions: { value: InvoiceLanguage; label: string }[] = [
+    { value: 'en', label: 'English' },
+    { value: 'ro', label: 'Română' },
+    { value: 'de', label: 'Deutsch' },
+    { value: 'fr', label: 'Français' },
+  ];
+
+  const layoutOptions: { value: TemplateLayout; label: string }[] = [
+    { value: 'swiss', label: 'Swiss' },
+    { value: 'executive', label: 'Executive' },
+    { value: 'compact', label: 'Compact' },
   ];
 
   return (
@@ -60,6 +73,49 @@ export const InvoiceMetaSection: React.FC = () => {
             placeholder="INV-2026-001"
             className="w-full px-3 py-2 text-sm font-mono font-semibold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900"
           />
+        </div>
+
+        {/* Language & Layout Selector */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+              <Languages className="w-3 h-3 text-slate-400" /> Language
+            </label>
+            <select
+              value={currentInvoice.language || 'en'}
+              onChange={(e) => {
+                triggerHaptic('selection');
+                updateCurrentInvoice({ language: e.target.value as InvoiceLanguage });
+              }}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium"
+            >
+              {languageOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+              <LayoutTemplate className="w-3 h-3 text-slate-400" /> Template layout
+            </label>
+            <select
+              value={currentInvoice.templateLayout || 'swiss'}
+              onChange={(e) => {
+                triggerHaptic('selection');
+                updateCurrentInvoice({ templateLayout: e.target.value as TemplateLayout });
+              }}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium"
+            >
+              {layoutOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Date inputs */}

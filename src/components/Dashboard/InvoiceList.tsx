@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Edit2, Copy, Trash2, Calendar, FileText } from 'lucide-react';
+import { Search, Plus, Edit2, Copy, Trash2, Calendar, FileText, CalendarPlus } from 'lucide-react';
 import { useInvoiceStore } from '../../store/invoiceStore';
 import { StatusBadge } from './StatusBadge';
 import { calculateInvoiceTotals, formatCurrency } from '../../lib/currency';
@@ -12,7 +12,8 @@ interface InvoiceListProps {
 }
 
 export const InvoiceList: React.FC<InvoiceListProps> = ({ onSelectInvoice, onCreateNew }) => {
-  const { savedInvoices, duplicateInvoice, deleteInvoice, updateInvoiceStatus } = useInvoiceStore();
+  const { savedInvoices, duplicateInvoice, billNextMonth, deleteInvoice, updateInvoiceStatus } =
+    useInvoiceStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -44,6 +45,12 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onSelectInvoice, onCre
   const handleDuplicate = (id: string) => {
     triggerHaptic('light');
     duplicateInvoice(id);
+    onSelectInvoice(id);
+  };
+
+  const handleBillNextMonth = (id: string) => {
+    triggerHaptic('success');
+    billNextMonth(id);
     onSelectInvoice(id);
   };
 
@@ -164,6 +171,14 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({ onSelectInvoice, onCre
                       title="Edit Invoice"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBillNextMonth(inv.id)}
+                      className="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Bill Next Month (Retainer)"
+                    >
+                      <CalendarPlus className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
